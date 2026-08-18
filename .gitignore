@@ -1,0 +1,151 @@
+# ============================================================
+# Maven
+# ============================================================
+
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.properties
+
+
+# ============================================================
+# Spring Boot / Application
+# ============================================================
+
+*.log
+logs/
+*.pid
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+application-local.properties
+application-local.yml
+application-local.yaml
+
+# Uncomment if you keep secrets directly in these files
+# application-prod.properties
+# application-prod.yml
+
+
+# ============================================================
+# Java
+# ============================================================
+
+*.class
+*.jar
+*.war
+*.ear
+
+hs_err_pid*
+replay_pid*
+
+
+# ============================================================
+# Spring Tool Suite / Eclipse
+# ============================================================
+
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache
+
+.springBeans
+.recommenders/
+
+
+# ============================================================
+# IntelliJ IDEA
+# ============================================================
+
+.idea/
+*.iws
+*.iml
+*.ipr
+
+out/
+
+
+# ============================================================
+# NetBeans
+# ============================================================
+
+/nbproject/private/
+/nbproject/Makefile-*
+/nbproject/build-impl.xml
+/nbproject/nbactions.xml
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+
+# ============================================================
+# Gradle
+# ============================================================
+
+.gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+
+# ============================================================
+# VS Code
+# ============================================================
+
+.vscode/
+
+
+# ============================================================
+# Operating System
+# ============================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+.directory
+
+
+# ============================================================
+# Temporary files
+# ============================================================
+
+*.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+
+
+# ============================================================
+# Coverage / Testing
+# ============================================================
+
+coverage/
+jacoco.exec
+
+
+# ============================================================
+# Generated files
+# ============================================================
+
+generated/
