@@ -74,7 +74,7 @@ public class SecurityConfig {
 
         http
                 .csrf(csrf -> csrf.disable())
-
+                .cors(cors -> {})
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(
                                 SessionCreationPolicy.STATELESS
@@ -84,7 +84,7 @@ public class SecurityConfig {
                 .authenticationProvider(authenticationProvider)
 
                 .authorizeHttpRequests(auth -> auth
-
+                        .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers(
                                 "/api/auth/signup",
                                 "/api/auth/login",
