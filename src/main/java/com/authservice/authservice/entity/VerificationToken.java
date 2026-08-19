@@ -43,4 +43,8 @@ public class VerificationToken {
     @Column(nullable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column(nullable = false)
+    @Builder.Default
+    private LocalDateTime lastSentAt = LocalDateTime.now();
 }

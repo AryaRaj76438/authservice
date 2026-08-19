@@ -1,0 +1,3 @@
+ALTER TABLE verification_tokens
+    ADD COLUMN last_sent_at TIMESTAMP NOT NULL
+        DEFAULT CURRENT_TIMESTAMP;
