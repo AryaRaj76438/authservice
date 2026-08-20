@@ -5,7 +5,6 @@ import com.authservice.authservice.dto.request.RefreshTokenRequest;
 import com.authservice.authservice.dto.request.SignupRequest;
 import com.authservice.authservice.dto.response.AuthResponse;
 import com.authservice.authservice.dto.response.UserResponse;
-import com.authservice.authservice.entity.LoginAttempt;
 import com.authservice.authservice.entity.RefreshToken;
 import com.authservice.authservice.entity.User;
 import com.authservice.authservice.entity.VerificationToken;
@@ -13,7 +12,6 @@ import com.authservice.authservice.enums.Role;
 import com.authservice.authservice.exception.BadRequestException;
 import com.authservice.authservice.exception.TooManyRequestsException;
 import com.authservice.authservice.exception.UnauthorizedException;
-import com.authservice.authservice.repository.LoginAttemptRepository;
 import com.authservice.authservice.repository.RefreshTokenRepository;
 import com.authservice.authservice.repository.UserRepository;
 import com.authservice.authservice.repository.VerificationTokenRepository;
@@ -33,15 +31,17 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
+import com.authservice.authservice.util.RedisKeys;
+
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
+    private final RedisService redisService;
+
     private final UserRepository userRepository;
     private final VerificationTokenRepository verificationTokenRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final LoginAttemptRepository loginAttemptRepository;
-
 
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
@@ -133,34 +133,18 @@ public class AuthService {
     public void resendVerificationEmail(String email) {
         email = normalizeEmail(email);
 
-        /*
-         * Do not reveal whether an account exists.
-         * This prevents email/account enumeration.
-         */
         User user = userRepository.findByEmail(email).orElse(null);
 
+        // Don't reveal whether the account exists.
         if (user == null || user.isEmailVerified()) {
             return;
         }
 
-        VerificationToken verificationToken =
-                verificationTokenRepository.findByUser(user).orElse(null);
+        String cooldownKey = RedisKeys.verificationCooldown(email);
 
-        if (verificationToken == null) {
-            createAndSendVerificationToken(user);
-            return;
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-
-        long secondsSinceLastEmail = Duration.between(
-                verificationToken.getLastSentAt(),
-                now
-        ).getSeconds();
-
-        if (secondsSinceLastEmail < verificationResendCooldownSeconds) {
-            long retryAfter =
-                    verificationResendCooldownSeconds - secondsSinceLastEmail;
+        // Check Redis cooldown.
+        if (redisService.exists(cooldownKey)) {
+            long retryAfter = redisService.getTtl(cooldownKey);
 
             throw new TooManyRequestsException(
                     "Please wait before requesting another verification email",
@@ -168,18 +152,38 @@ public class AuthService {
             );
         }
 
+        VerificationToken verificationToken = verificationTokenRepository
+                .findByUser(user)
+                .orElse(null);
+
         String rawToken = tokenUtil.generateToken();
         String tokenHash = tokenUtil.hashToken(rawToken);
+        LocalDateTime now = LocalDateTime.now();
 
-        verificationToken.setTokenHash(tokenHash);
-        verificationToken.setExpiresAt(
-                now.plusHours(verificationTokenExpirationHours)
-        );
-        verificationToken.setLastSentAt(now);
+        if (verificationToken == null) {
+            verificationToken = VerificationToken.builder()
+                    .tokenHash(tokenHash)
+                    .user(user)
+                    .expiresAt(now.plusHours(verificationTokenExpirationHours))
+                    .lastSentAt(now)
+                    .build();
+        } else {
+            verificationToken.setTokenHash(tokenHash);
+            verificationToken.setExpiresAt(
+                    now.plusHours(verificationTokenExpirationHours)
+            );
+            verificationToken.setLastSentAt(now);
+        }
 
         verificationTokenRepository.save(verificationToken);
 
         emailService.sendVerificationEmail(user, rawToken);
+
+        redisService.set(
+                cooldownKey,
+                "1",
+                Duration.ofSeconds(verificationResendCooldownSeconds)
+        );
     }
 
     // =====================================================
@@ -190,13 +194,8 @@ public class AuthService {
     public AuthResponse login(LoginRequest request) {
         String email = normalizeEmail(request.getEmail());
 
-        LoginAttempt loginAttempt = loginAttemptRepository.findByEmail(email).orElse(null);
-
-        if (loginAttempt != null &&
-                loginAttempt.getLockedUntil() != null &&
-                loginAttempt.getLockedUntil()
-                        .isAfter(LocalDateTime.now())) {
-
+        String lockKey = RedisKeys.loginLock(email);
+        if(redisService.exists(lockKey)){
             throw new UnauthorizedException(
                     "Too many failed login attempts. Please try again later."
             );
@@ -353,42 +352,21 @@ public class AuthService {
     }
 
     private void recordFailedLogin(String email) {
-        LocalDateTime now = LocalDateTime.now();
+        String attemptsKeys = RedisKeys.loginAttempts(email);
+        String lockKeys = RedisKeys.loginLock(email);
+        Long attempts = redisService.increment(attemptsKeys);
 
-        LoginAttempt attempt = loginAttemptRepository
-                        .findByEmail(email)
-                        .orElseGet(() ->
-                                LoginAttempt.builder()
-                                        .email(email)
-                                        .failedAttempts(0)
-                                        .firstFailedAt(now)
-                                        .build()
-                        );
-
-        if (attempt.getFirstFailedAt()
-                .plusMinutes(attemptWindowMinutes)
-                .isBefore(now)) {
-
-            attempt.setFailedAttempts(0);
-            attempt.setFirstFailedAt(now);
+        if(attempts!=null && attempts==1){
+            redisService.expire(attemptsKeys, Duration.ofMinutes(attemptWindowMinutes));
         }
-
-
-        int failures = attempt.getFailedAttempts() + 1;
-        attempt.setFailedAttempts(failures);
-
-        if (failures >= maxFailedAttempts) {
-            attempt.setLockedUntil(now.plusMinutes(lockDurationMinutes));
+        if(attempts!=null && attempts>=maxFailedAttempts){
+            redisService.set(lockKeys, "1", Duration.ofMinutes(lockDurationMinutes));
         }
-        loginAttemptRepository.save(attempt);
     }
 
     private void resetLoginAttempts(String email) {
-        loginAttemptRepository
-                .findByEmail(email)
-                .ifPresent(
-                        loginAttemptRepository::delete
-                );
+        redisService.delete(RedisKeys.loginAttempts(email));
+        redisService.delete(RedisKeys.loginLock(email));
     }
 
 
