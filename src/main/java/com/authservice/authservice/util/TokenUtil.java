@@ -14,9 +14,7 @@ public class TokenUtil {
     private final SecureRandom secureRandom = new SecureRandom();
 
     public String generateToken() {
-
         byte[] bytes = new byte[32];
-
         secureRandom.nextBytes(bytes);
 
         return Base64.getUrlEncoder()
@@ -25,21 +23,15 @@ public class TokenUtil {
     }
 
     public String hashToken(String token) {
-
         try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
 
-            MessageDigest digest =
-                    MessageDigest.getInstance("SHA-256");
-
-            byte[] hash =
-                    digest.digest(
-                            token.getBytes(StandardCharsets.UTF_8)
-                    );
+            byte[] hash = digest.digest(
+                    token.getBytes(StandardCharsets.UTF_8)
+            );
 
             return bytesToHex(hash);
-
         } catch (NoSuchAlgorithmException e) {
-
             throw new IllegalStateException(
                     "SHA-256 algorithm not available",
                     e
@@ -48,14 +40,10 @@ public class TokenUtil {
     }
 
     private String bytesToHex(byte[] bytes) {
-
         StringBuilder result = new StringBuilder();
 
         for (byte b : bytes) {
-
-            result.append(
-                    String.format("%02x", b)
-            );
+            result.append(String.format("%02x", b));
         }
 
         return result.toString();

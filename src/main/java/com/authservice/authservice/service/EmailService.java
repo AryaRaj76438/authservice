@@ -1,18 +1,13 @@
 package com.authservice.authservice.service;
 
 import com.authservice.authservice.entity.User;
-
-import lombok.RequiredArgsConstructor;
-
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-
-import org.springframework.mail.javamail.MimeMessageHelper;
-
-import org.springframework.stereotype.Service;
-
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
@@ -23,35 +18,18 @@ public class EmailService {
     @Value("${app.verification-url}")
     private String verificationUrl;
 
-    public void sendVerificationEmail(
-            User user,
-            String token
-    ) {
+    @Value("${app.password-reset.frontend-url}")
+    private String frontendUrl;
 
-        String verificationLink =
-                verificationUrl
-                        + "?token="
-                        + token;
+    @Value("${app.password-reset.token-expiration-minutes:30}")
+    private long passwordResetExpirationMinutes;
 
-        MimeMessage message =
-                mailSender.createMimeMessage();
+    public void sendVerificationEmail(User user, String token) {
+        String verificationLink = verificationUrl + "?token=" + token;
 
-        try {
+        String subject = "Verify your AuthService account";
 
-            MimeMessageHelper helper =
-                    new MimeMessageHelper(
-                            message,
-                            true,
-                            "UTF-8"
-                    );
-
-            helper.setTo(user.getEmail());
-
-            helper.setSubject(
-                    "Verify your AuthService account"
-            );
-
-            String html = """
+        String html = """
                 <!DOCTYPE html>
                 <html>
                 <body style="font-family: Arial, sans-serif;">
@@ -80,8 +58,7 @@ public class EmailService {
                     </p>
 
                     <p>
-                        This verification link will expire
-                        in 24 hours.
+                        This verification link will expire in %d hours.
                     </p>
 
                     <p>
@@ -92,18 +69,86 @@ public class EmailService {
                 </body>
                 </html>
                 """.formatted(
-                    user.getName(),
-                    verificationLink
+                user.getName(),
+                verificationLink,
+                24
+        );
+
+        sendHtmlEmail(user.getEmail(), subject, html);
+    }
+
+    public void sendPasswordResetEmail(User user, String rawToken) {
+        String resetUrl = frontendUrl + "/reset-password?token=" + rawToken;
+
+        String subject = "Reset your password";
+
+        String body = """
+                Hello %s,
+
+                We received a request to reset your password.
+
+                Click the link below to reset your password:
+                %s
+
+                This link will expire in %d minutes.
+
+                If you did not request a password reset,
+                you can safely ignore this email.
+
+                Regards,
+                AuthService
+                """.formatted(
+                user.getName(),
+                resetUrl,
+                passwordResetExpirationMinutes
+        );
+
+        sendEmail(user.getEmail(), subject, body);
+    }
+
+    private void sendEmail(String to, String subject, String body) {
+        MimeMessage message = mailSender.createMimeMessage();
+
+        try {
+            MimeMessageHelper helper = new MimeMessageHelper(
+                    message,
+                    false,
+                    "UTF-8"
             );
 
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(body, false);
+
+            mailSender.send(message);
+
+        } catch (MessagingException e) {
+            throw new RuntimeException(
+                    "Unable to send email",
+                    e
+            );
+        }
+    }
+
+    private void sendHtmlEmail(String to, String subject, String html) {
+        MimeMessage message = mailSender.createMimeMessage();
+
+        try {
+            MimeMessageHelper helper = new MimeMessageHelper(
+                    message,
+                    true,
+                    "UTF-8"
+            );
+
+            helper.setTo(to);
+            helper.setSubject(subject);
             helper.setText(html, true);
 
             mailSender.send(message);
 
         } catch (MessagingException e) {
-
             throw new RuntimeException(
-                    "Unable to send verification email",
+                    "Unable to send email",
                     e
             );
         }
