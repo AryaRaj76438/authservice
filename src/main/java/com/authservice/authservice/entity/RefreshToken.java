@@ -40,6 +40,15 @@ public class RefreshToken {
     @Builder.Default
     private boolean revoked = false;
 
+    private LocalDateTime revokedAt;
+
+    /**
+     * Hash of the refresh token that replaced
+     * this token during rotation.
+     */
+    @Column(length = 64)
+    private String replacedByTokenHash;
+
     @Column(nullable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();

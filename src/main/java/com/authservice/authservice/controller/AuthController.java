@@ -3,11 +3,13 @@ package com.authservice.authservice.controller;
 import com.authservice.authservice.dto.request.*;
 import com.authservice.authservice.dto.response.AuthResponse;
 import com.authservice.authservice.dto.response.MessageResponse;
+import com.authservice.authservice.security.UserPrincipal;
 import com.authservice.authservice.service.AuthService;
 import com.authservice.authservice.service.PasswordResetService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -65,6 +67,29 @@ public class AuthController {
 
         return ResponseEntity.ok(
                 authService.login(request)
+        );
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(@Valid @RequestBody LogoutRequest logoutRequest){
+        authService.logout(logoutRequest.getRefreshToken());
+        return ResponseEntity.ok(
+                Map.of(
+                        "message",
+                        "Logged out successfully"
+                )
+        );
+    }
+
+    @PostMapping("/logout-all")
+    public ResponseEntity<?> logoutAll(Authentication authentication){
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        authService.logoutAll(userPrincipal.getId());
+        return ResponseEntity.ok(
+                Map.of(
+                        "message",
+                        "All sessions have been logged out"
+                )
         );
     }
 
