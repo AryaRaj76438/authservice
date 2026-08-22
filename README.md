@@ -160,6 +160,136 @@ Run the test suite with:
 ./mvnw test
 ```
 
+## API Endpoints
+
+Base URL:
+
+```text
+/api/auth
+```
+
+### Authentication
+
+| Method | Endpoint                         | Description                                      | Authentication |
+| ------ | -------------------------------- | ------------------------------------------------ | -------------- |
+| `POST` | `/api/auth/signup`               | Register a new user                              | Public         |
+| `GET`  | `/api/auth/verify?token={token}` | Verify user's email address                      | Public         |
+| `POST` | `/api/auth/resend-verification`  | Resend email verification link                   | Public         |
+| `POST` | `/api/auth/login`                | Authenticate user and issue tokens               | Public         |
+| `POST` | `/api/auth/refresh`              | Refresh the access token using the refresh token | Public         |
+| `POST` | `/api/auth/logout`               | Revoke the current refresh-token session         | Authenticated  |
+| `POST` | `/api/auth/logout-all`           | Revoke all active sessions for the user          | Authenticated  |
+
+### Password Management
+
+| Method | Endpoint                    | Description                              | Authentication |
+| ------ | --------------------------- | ---------------------------------------- | -------------- |
+| `POST` | `/api/auth/forgot-password` | Request a password-reset email           | Public         |
+| `POST` | `/api/auth/reset-password`  | Reset password using a valid reset token | Public         |
+
+### Example Requests
+
+#### Register
+
+```http
+POST /api/auth/signup
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "password": "your-password"
+}
+```
+
+#### Login
+
+```http
+POST /api/auth/login
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com",
+  "password": "your-password"
+}
+```
+
+#### Refresh Token
+
+```http
+POST /api/auth/refresh
+```
+
+The refresh token is handled through the secure `HttpOnly` cookie.
+
+#### Logout
+
+```http
+POST /api/auth/logout
+Authorization: Bearer <access-token>
+```
+
+#### Logout All Sessions
+
+```http
+POST /api/auth/logout-all
+Authorization: Bearer <access-token>
+```
+
+#### Email Verification
+
+The verification link sent to the user's email points to:
+
+```http
+GET /api/auth/verify?token=<verification-token>
+```
+
+#### Forgot Password
+
+```http
+POST /api/auth/forgot-password
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+#### Reset Password
+
+```http
+POST /api/auth/reset-password
+Content-Type: application/json
+```
+
+```json
+{
+  "token": "<reset-token>",
+  "newPassword": "new-password"
+}
+```
+
+## Authentication Model
+
+The API uses a **short-lived JWT access token** for authenticated requests.
+
+Refresh tokens are maintained separately and rotated during token refresh. The refresh token is stored in a secure `HttpOnly` cookie to reduce exposure to client-side JavaScript.
+
+```text
+Login
+  │
+  ├── Access Token (JWT)
+  │       └── Authorization: Bearer <token>
+  │
+  └── Refresh Token
+          └── HttpOnly Cookie
+```
+
 ## Project Goals
 
 The primary goal of AuthService is to provide a **production-oriented authentication backend** with strong security defaults, reliable email workflows, session management, and protection against common authentication attacks.
