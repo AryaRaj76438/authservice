@@ -1,156 +1,113 @@
 package com.authservice.authservice.service;
 
 import com.authservice.authservice.entity.User;
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
 public class EmailService {
 
-    private final JavaMailSender mailSender;
+    private final EmailOutboxService emailOutboxService;
 
     @Value("${app.verification-url}")
-    private String verificationUrl;
+    private String verificationFrontendUrl;
+
+    @Value("${app.verification.token-expiration-minutes:15}")
+    private long verificationExpirationMinutes;
 
     @Value("${app.password-reset.frontend-url}")
-    private String frontendUrl;
+    private String passwordResetFrontendUrl;
 
     @Value("${app.password-reset.token-expiration-minutes:30}")
     private long passwordResetExpirationMinutes;
 
-    public void sendVerificationEmail(User user, String token) {
-        String verificationLink = verificationUrl + "?token=" + token;
+    public void sendVerificationEmail(User user, String rawToken) {
+        String verificationUrl =
+                verificationFrontendUrl + "?token=" + rawToken;
 
         String subject = "Verify your AuthService account";
 
-        String html = """
-                <!DOCTYPE html>
-                <html>
-                <body style="font-family: Arial, sans-serif;">
+        String body = """
+                ============================================================
+                AUTH SERVICE
+                ============================================================
 
-                    <h2>Welcome to AuthService</h2>
+                Hello %s,
 
-                    <p>Hello %s,</p>
+                Thank you for creating an account with AuthService.
 
-                    <p>
-                        Thank you for creating an account.
-                        Please verify your email address by
-                        clicking the button below.
-                    </p>
+                Please verify your email address using the link below:
 
-                    <p>
-                        <a href="%s"
-                           style="
-                           display:inline-block;
-                           padding:12px 20px;
-                           background:#2563eb;
-                           color:white;
-                           text-decoration:none;
-                           border-radius:6px;">
-                           Verify Email
-                        </a>
-                    </p>
+                %s
 
-                    <p>
-                        This verification link will expire in %d hours.
-                    </p>
+                This verification link will expire in %d minutes.
 
-                    <p>
-                        If you did not create this account,
-                        you can safely ignore this email.
-                    </p>
+                If you did not create this account, you can safely ignore
+                this email.
 
-                </body>
-                </html>
+                ------------------------------------------------------------
+
+                Regards,
+                AuthService
+
+                This is an automated email. Please do not reply.
+                ============================================================
                 """.formatted(
                 user.getName(),
-                verificationLink,
-                24
+                verificationUrl,
+                verificationExpirationMinutes
         );
 
-        sendHtmlEmail(user.getEmail(), subject, html);
+        emailOutboxService.queueEmail(
+                user.getEmail(),
+                subject,
+                body
+        );
     }
 
     public void sendPasswordResetEmail(User user, String rawToken) {
-        String resetUrl = frontendUrl + "/reset-password?token=" + rawToken;
+        String resetUrl =
+                passwordResetFrontendUrl + "?token=" + rawToken;
 
         String subject = "Reset your password";
 
         String body = """
+                ============================================================
+                AUTH SERVICE
+                ============================================================
+
                 Hello %s,
 
-                We received a request to reset your password.
+                We received a request to reset your AuthService password.
 
-                Click the link below to reset your password:
+                Use the link below to reset your password:
+
                 %s
 
-                This link will expire in %d minutes.
+                This password reset link will expire in %d minutes.
 
-                If you did not request a password reset,
-                you can safely ignore this email.
+                If you did not request a password reset, you can safely
+                ignore this email. Your password will remain unchanged.
+
+                ------------------------------------------------------------
 
                 Regards,
                 AuthService
+
+                This is an automated email. Please do not reply.
+                ============================================================
                 """.formatted(
                 user.getName(),
                 resetUrl,
                 passwordResetExpirationMinutes
         );
 
-        sendEmail(user.getEmail(), subject, body);
-    }
-
-    private void sendEmail(String to, String subject, String body) {
-        MimeMessage message = mailSender.createMimeMessage();
-
-        try {
-            MimeMessageHelper helper = new MimeMessageHelper(
-                    message,
-                    false,
-                    "UTF-8"
-            );
-
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(body, false);
-
-            mailSender.send(message);
-
-        } catch (MessagingException e) {
-            throw new RuntimeException(
-                    "Unable to send email",
-                    e
-            );
-        }
-    }
-
-    private void sendHtmlEmail(String to, String subject, String html) {
-        MimeMessage message = mailSender.createMimeMessage();
-
-        try {
-            MimeMessageHelper helper = new MimeMessageHelper(
-                    message,
-                    true,
-                    "UTF-8"
-            );
-
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(html, true);
-
-            mailSender.send(message);
-
-        } catch (MessagingException e) {
-            throw new RuntimeException(
-                    "Unable to send email",
-                    e
-            );
-        }
+        emailOutboxService.queueEmail(
+                user.getEmail(),
+                subject,
+                body
+        );
     }
 }
