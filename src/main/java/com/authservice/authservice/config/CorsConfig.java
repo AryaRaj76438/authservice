@@ -7,19 +7,27 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import java.util.List;
+import java.util.Arrays;
 
 @Configuration
 public class CorsConfig {
-    @Value("${app.verification-url}")
-    private String frontendUrl;
+
+    @Value("${app.cors.allowed-origins:http://localhost:3000}")
+    private String allowedOrigins;
 
     @Bean
-    public CorsConfigurationSource corsConfigurationSource(){
+    public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(frontendUrl));
+
+        configuration.setAllowedOrigins(
+                Arrays.stream(allowedOrigins.split(","))
+                        .map(String::trim)
+                        .filter(origin -> !origin.isBlank())
+                        .toList()
+        );
+
         configuration.setAllowedMethods(
-                List.of(
+                Arrays.asList(
                         "GET",
                         "POST",
                         "PUT",
@@ -28,13 +36,18 @@ public class CorsConfig {
                         "OPTIONS"
                 )
         );
+
         configuration.setAllowedHeaders(
-                List.of(
+                Arrays.asList(
                         "Authorization",
-                        "Content-Type"
+                        "Content-Type",
+                        "Accept"
                 )
         );
+
         configuration.setAllowCredentials(true);
+
+        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();

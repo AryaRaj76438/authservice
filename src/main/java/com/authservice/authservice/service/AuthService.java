@@ -4,6 +4,7 @@ import com.authservice.authservice.dto.request.LoginRequest;
 import com.authservice.authservice.dto.request.RefreshTokenRequest;
 import com.authservice.authservice.dto.request.SignupRequest;
 import com.authservice.authservice.dto.response.AuthResponse;
+import com.authservice.authservice.dto.response.AuthenticationResult;
 import com.authservice.authservice.dto.response.UserResponse;
 import com.authservice.authservice.entity.RefreshToken;
 import com.authservice.authservice.entity.User;
@@ -195,7 +196,7 @@ public class AuthService {
     // =====================================================
 
     @Transactional
-    public AuthResponse login(LoginRequest request) {
+    public AuthenticationResult login(LoginRequest request) {
         String email = normalizeEmail(request.getEmail());
 
         String lockKey = RedisKeys.loginLock(email);
@@ -239,11 +240,17 @@ public class AuthService {
         String accessToken = jwtService.generateAccessToken(principal);
         String refreshToken = createRefreshToken(user);
 
-        return AuthResponse.builder()
-                .accessToken(accessToken)
+        return AuthenticationResult.builder()
+                .authResponse(
+                        AuthResponse.builder()
+                                .accessToken(accessToken)
+                                .tokenType("Bearer")
+                                .user(
+                                        UserResponse.from(user)
+                                )
+                                .build()
+                )
                 .refreshToken(refreshToken)
-                .tokenType("Bearer")
-                .user(UserResponse.from(user))
                 .build();
     }
 
@@ -252,7 +259,7 @@ public class AuthService {
     // =====================================================
 
     @Transactional
-    public AuthResponse refreshToken(RefreshTokenRequest request) {
+    public AuthenticationResult refreshToken(RefreshTokenRequest request) {
         String rawToken = request.getRefreshToken();
 
         if(rawToken==null || rawToken.isBlank()){
@@ -337,11 +344,17 @@ public class AuthService {
         String accessToken =
                 jwtService.generateAccessToken(principal);
 
-        return AuthResponse.builder()
-                .accessToken(accessToken)
+        return AuthenticationResult.builder()
+                .authResponse(
+                        AuthResponse.builder()
+                                .accessToken(accessToken)
+                                .tokenType("Bearer")
+                                .user(
+                                        UserResponse.from(user)
+                                )
+                                .build()
+                )
                 .refreshToken(newRawToken)
-                .tokenType("Bearer")
-                .user(UserResponse.from(user))
                 .build();
     }
 

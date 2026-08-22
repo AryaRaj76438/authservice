@@ -2,10 +2,15 @@ package com.authservice.authservice.controller;
 
 import com.authservice.authservice.dto.request.*;
 import com.authservice.authservice.dto.response.AuthResponse;
+import com.authservice.authservice.dto.response.AuthenticationResult;
 import com.authservice.authservice.dto.response.MessageResponse;
+import com.authservice.authservice.exception.UnauthorizedException;
 import com.authservice.authservice.security.UserPrincipal;
 import com.authservice.authservice.service.AuthService;
+import com.authservice.authservice.service.CookieService;
 import com.authservice.authservice.service.PasswordResetService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +26,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final PasswordResetService passwordResetService;
+    private final CookieService cookieService;
 
     @PostMapping("/signup")
     public ResponseEntity<MessageResponse> signup(
@@ -62,17 +68,18 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(
-            @Valid @RequestBody LoginRequest request) {
-
-        return ResponseEntity.ok(
-                authService.login(request)
-        );
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request,
+                                              HttpServletResponse response) {
+        AuthenticationResult result = authService.login(request);
+        cookieService.addRefreshTokenCookie(response,result.getRefreshToken());
+        return ResponseEntity.ok(result.getAuthResponse());
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(@Valid @RequestBody LogoutRequest logoutRequest){
-        authService.logout(logoutRequest.getRefreshToken());
+    public ResponseEntity<?> logout(HttpServletRequest request, HttpServletResponse response){
+        String refreshToken = cookieService.getRefreshToken(request);
+        authService.logout(refreshToken);
+        cookieService.clearRefreshTokenCookie(response);
         return ResponseEntity.ok(
                 Map.of(
                         "message",
@@ -95,10 +102,31 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refresh(
-            @Valid @RequestBody RefreshTokenRequest request) {
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) {
+        String refreshToken = cookieService.getRefreshToken(request);
+
+        if (refreshToken == null ||
+                refreshToken.isBlank()) {
+
+            throw new UnauthorizedException("Refresh token is missing");
+        }
+
+
+        RefreshTokenRequest refreshRequest = new RefreshTokenRequest();
+
+        refreshRequest.setRefreshToken(refreshToken);
+
+        AuthenticationResult result = authService.refreshToken(refreshRequest);
+
+        /*
+         * Rotate refresh-token cookie.
+         */
+        cookieService.addRefreshTokenCookie(response, result.getRefreshToken());
 
         return ResponseEntity.ok(
-                authService.refreshToken(request)
+                result.getAuthResponse()
         );
     }
 
